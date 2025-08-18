@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TraceImpl} from '../core/trace_impl';
 import {VERSION} from '../gen/perfetto_version';
 import {exists} from './utils';
 
@@ -22,7 +21,6 @@ export interface ErrorStackEntry {
   location: string; // e.g. frontend_bundle.js:12:3
 }
 export interface ErrorDetails {
-  trace: TraceImpl;
   errType: ErrorType;
   message: string; // Uncaught StoreError: No such subtree: tracks,1374,state
   stack: ErrorStackEntry[];

@@ -28,7 +28,6 @@ import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
 import {download, downloadUrl} from '../base/download_utils';
-import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {shareTrace} from './trace_share_utils';
 import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
@@ -49,8 +48,8 @@ import {Button} from '../widgets/button';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 
-function getBugReportUrl(): string {
-  if (globals.isInternalUser) {
+function getBugReportUrl(app: AppImpl): string {
+  if (app.isInternalUser) {
     return 'https://goto.google.com/perfetto-ui-bug';
   } else {
     return 'https://github.com/google/perfetto/issues/new';
@@ -64,8 +63,8 @@ const HIRING_BANNER_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-function shouldShowHiringBanner(): boolean {
-  return globals.isInternalUser && HIRING_BANNER_FLAG.get();
+function shouldShowHiringBanner(app: AppImpl): boolean {
+  return app.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 
 async function openCurrentTraceWithOldUI(
@@ -383,7 +382,7 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
           this._redrawWhileAnimating.stop();
         },
       },
-      shouldShowHiringBanner() ? m(HiringBanner) : null,
+      shouldShowHiringBanner(app) ? m(HiringBanner) : null,
       m(
         `header.pf-sidebar__channel--${getCurrentChannel()}`,
         m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
@@ -566,7 +565,7 @@ function registerGlobalSidebarEntries(app: AppImpl) {
     section: 'support',
     sortOrder: 4,
     text: 'Report a bug',
-    href: getBugReportUrl(),
+    href: getBugReportUrl(app),
     icon: 'bug_report',
   });
 }
@@ -592,7 +591,7 @@ function registerTraceMenuItems(app: AppImpl, trace: TraceImpl) {
     href: '#!/viewer',
     icon: 'line_style',
   });
-  globals.isInternalUser &&
+  app.isInternalUser &&
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       text: 'Share',

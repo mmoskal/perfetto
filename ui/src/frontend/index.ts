@@ -29,7 +29,7 @@ import {UiMain} from './ui_main';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
-import {globals} from './globals';
+import {loadIsInternalUserScript} from './is_internal_user_loader';
 import {HomePage} from './home_page';
 import {initializePostMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
@@ -40,7 +40,7 @@ import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
-import {AppImpl} from '../core/app_impl';
+import {AppImpl, createApp} from '../core/app_impl';
 import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
 import {
@@ -184,17 +184,19 @@ function main() {
     defaultValue: DurationPrecision.Full,
   });
 
-  AppImpl.initialize({
+  const app = createApp({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
     timestampFormatSetting,
     durationPrecisionSetting,
     timezoneOverrideSetting,
     maybeShowErrorDialog: (error: ErrorDetails) => {
-      maybeShowErrorDialog(error);
+      maybeShowErrorDialog(app, error);
     },
   });
-  const app = AppImpl.instance;
+
+  // Put debug variables in the global scope for better debugging.
+  registerDebugGlobals(app);
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
   // appendChild returns.
@@ -208,24 +210,16 @@ function main() {
   if (favicon instanceof HTMLLinkElement) {
     favicon.href = assetSrc('assets/favicon.png');
   }
+  document.head.append(css);
 
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
-  function initAnalyticsOnScriptLoad() {
-    app.analytics.initialize(globals.isInternalUser);
-  }
-  const script = document.createElement('script');
-  script.src =
-    'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
-  script.async = true;
-  script.onerror = () => initAnalyticsOnScriptLoad();
-  script.onload = () => initAnalyticsOnScriptLoad();
-  setTimeout(() => initAnalyticsOnScriptLoad(), 5000);
-
-  document.head.append(script, css);
+  loadIsInternalUserScript(app).then(() => {
+    app.analytics.initialize(app.isInternalUser);
+  });
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
-  addErrorHandler(maybeShowErrorDialog);
+  addErrorHandler((e) => maybeShowErrorDialog(app, e));
   addErrorHandler((e) => app.analytics.logError(e));
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
@@ -234,9 +228,6 @@ function main() {
 
   initWasm();
   app.serviceWorkerController.install();
-
-  // Put debug variables in the global scope for better debugging.
-  registerDebugGlobals(app);
 
   // Prevent pinch zoom.
   document.body.addEventListener(
@@ -254,7 +245,7 @@ function main() {
   }
 
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
-    return new IdleDetector().waitForPerfettoIdle(ms);
+    return new IdleDetector(app).waitForPerfettoIdle(ms);
   };
 }
 

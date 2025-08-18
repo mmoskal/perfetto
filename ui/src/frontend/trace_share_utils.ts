@@ -16,15 +16,9 @@ import m from 'mithril';
 import {TraceUrlSource} from '../core/trace_source';
 import {createPermalink, uploadTraceBlob} from './permalink';
 import {showModal} from '../widgets/modal';
-import {globals} from './globals';
-import {Trace} from '../public/trace';
 import {TraceImpl} from '../core/trace_impl';
 import {CopyableLink} from '../widgets/copyable_link';
 import {AppImpl} from '../core/app_impl';
-
-export function isShareable(trace: Trace) {
-  return globals.isInternalUser && trace.traceInfo.downloadable;
-}
 
 const STATE_HASH_PLACEHOLDER = 'perfettoStateHashPlaceholder';
 
@@ -37,7 +31,7 @@ export async function shareTrace(app: AppImpl, trace: TraceImpl) {
   const traceUrl = (traceSource as TraceUrlSource).url ?? '';
   const hasPlaceholder = urlHasPlaceholder(traceUrl);
 
-  if (isShareable(trace)) {
+  if (app.isInternalUser && trace.traceInfo.downloadable) {
     // Just upload the trace and create a permalink.
     const result = confirm(
       `Upload UI state and generate a permalink? ` +

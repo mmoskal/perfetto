@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../base/async_limiter';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue, ErrorDetails} from '../base/logging';
 import {createProxy, getOrCreate} from '../base/utils';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {App} from '../public/app';
@@ -54,6 +54,7 @@ export interface AppInitArgs {
   readonly timestampFormatSetting: Setting<TimestampFormat>;
   readonly durationPrecisionSetting: Setting<DurationPrecision>;
   readonly timezoneOverrideSetting: Setting<string>;
+  readonly maybeShowErrorDialog: (error: ErrorDetails) => void;
 }
 
 /**
@@ -109,6 +110,8 @@ export class AppContext {
   readonly durationPrecision: Setting<DurationPrecision>;
   readonly timezoneOverride: Setting<string>;
 
+  readonly maybeShowErrorDialog: (error: ErrorDetails) => void;
+
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
   private constructor(initArgs: AppInitArgs) {
@@ -131,9 +134,10 @@ export class AppContext {
     this.pluginMgr = new PluginManagerImpl({
       forkForPlugin: (pluginId) => this.forPlugin(pluginId),
       get trace() {
-        return AppImpl.instance.trace;
+        return this.trace;
       },
     });
+    this.maybeShowErrorDialog = initArgs.maybeShowErrorDialog;
   }
 
   // Gets or creates an instance of AppImpl backed by the current AppContext
@@ -300,6 +304,10 @@ export class AppImpl implements App {
 
   openTraceFromHttpRpc(): void {
     this.openTrace({type: 'HTTP_RPC'});
+  }
+
+  maybeShowErrorDialog(error: ErrorDetails): void {
+    this.appCtx.maybeShowErrorDialog(error);
   }
 
   private async openTrace(src: TraceSource) {

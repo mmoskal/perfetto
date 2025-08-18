@@ -20,7 +20,7 @@ import NON_CORE_PLUGINS from '../gen/all_plugins';
 import CORE_PLUGINS from '../gen/all_core_plugins';
 import m from 'mithril';
 import {defer} from '../base/deferred';
-import {addErrorHandler, reportError} from '../base/logging';
+import {addErrorHandler, ErrorDetails, reportError} from '../base/logging';
 import {featureFlags} from '../core/feature_flags';
 import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
@@ -31,7 +31,7 @@ import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
 import {globals} from './globals';
 import {HomePage} from './home_page';
-import {postMessageHandler} from './post_message_handler';
+import {initializePostMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
@@ -70,7 +70,7 @@ const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   defaultValue: false,
 });
 
-function routeChange(route: Route) {
+function routeChange(app: AppImpl, route: Route) {
   raf.scheduleFullRedraw(() => {
     if (route.fragment) {
       // This needs to happen after the next redraw call. It's not enough
@@ -82,7 +82,7 @@ function routeChange(route: Route) {
       }
     }
   });
-  maybeOpenTraceFromRoute(route);
+  maybeOpenTraceFromRoute(app, route);
 }
 
 function setupContentSecurityPolicy() {
@@ -190,7 +190,11 @@ function main() {
     timestampFormatSetting,
     durationPrecisionSetting,
     timezoneOverrideSetting,
+    maybeShowErrorDialog: (error: ErrorDetails) => {
+      maybeShowErrorDialog(error);
+    },
   });
+  const app = AppImpl.instance;
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
   // appendChild returns.
@@ -208,7 +212,7 @@ function main() {
   // Load the script to detect if this is a Googler (see comments on globals.ts)
   // and initialize GA after that (or after a timeout if something goes wrong).
   function initAnalyticsOnScriptLoad() {
-    AppImpl.instance.analytics.initialize(globals.isInternalUser);
+    app.analytics.initialize(globals.isInternalUser);
   }
   const script = document.createElement('script');
   script.src =
@@ -222,17 +226,17 @@ function main() {
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);
-  addErrorHandler((e) => AppImpl.instance.analytics.logError(e));
+  addErrorHandler((e) => app.analytics.logError(e));
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 
   initWasm();
-  AppImpl.instance.serviceWorkerController.install();
+  app.serviceWorkerController.install();
 
   // Put debug variables in the global scope for better debugging.
-  registerDebugGlobals();
+  registerDebugGlobals(app);
 
   // Prevent pinch zoom.
   document.body.addEventListener(
@@ -243,9 +247,9 @@ function main() {
     {passive: false},
   );
 
-  cssLoadPromise.then(() => onCssLoaded());
+  cssLoadPromise.then(() => onCssLoaded(app));
 
-  if (AppImpl.instance.testingMode) {
+  if (app.testingMode) {
     document.body.classList.add('testing');
   }
 
@@ -254,18 +258,18 @@ function main() {
   };
 }
 
-function onCssLoaded() {
+function onCssLoaded(app: AppImpl) {
   // Clear all the contents of the initial page (e.g. the <pre> error message)
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
-  const pages = AppImpl.instance.pages;
+  const pages = app.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
-  pages.registerPage({route: '/viewer', render: () => renderViewerPage()});
+  pages.registerPage({route: '/viewer', render: () => renderViewerPage(app)});
   const router = new Router();
-  router.onRouteChanged = routeChange;
+  router.onRouteChanged = (route: Route) => routeChange(app, route);
 
-  const themeSetting = AppImpl.instance.settings.register({
+  const themeSetting = app.settings.register({
     id: 'theme',
     name: '[Experimental] UI Theme',
     description: 'Warning: Dark mode is not fully supported yet.',
@@ -274,7 +278,7 @@ function onCssLoaded() {
   });
 
   // Add command to toggle the theme.
-  AppImpl.instance.commands.registerCommand({
+  app.commands.registerCommand({
     id: 'toggleTheme',
     name: '[Experimental] Toggle UI Theme',
     callback: () => {
@@ -288,7 +292,7 @@ function onCssLoaded() {
     view: () =>
       m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
         m(OverlayContainer, {fillParent: true}, [
-          m(UiMain, {key: themeSetting.get()}),
+          m(UiMain, {key: themeSetting.get(), app}),
         ]),
       ]),
   });
@@ -296,8 +300,8 @@ function onCssLoaded() {
   if (
     (location.origin.startsWith('http://localhost:') ||
       location.origin.startsWith('http://127.0.0.1:')) &&
-    !AppImpl.instance.embeddedMode &&
-    !AppImpl.instance.testingMode
+    !app.embeddedMode &&
+    !app.testingMode
   ) {
     initLiveReload();
   }
@@ -309,29 +313,29 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   maybeChangeRpcPortFromFragment();
-  CheckHttpRpcConnection().then(() => {
+  CheckHttpRpcConnection(app).then(() => {
     const route = Router.parseUrl(window.location.href);
-    if (!AppImpl.instance.embeddedMode) {
-      installFileDropHandler();
+    if (!app.embeddedMode) {
+      installFileDropHandler(app);
     }
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
-    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    const traceSource = app.trace?.traceInfo.source;
     if (traceSource && traceSource.type === 'HTTP_RPC') {
       return;
     }
 
     // Add support for opening traces from postMessage().
-    window.addEventListener('message', postMessageHandler, {passive: true});
+    initializePostMessageHandler(app);
 
     // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=...
     // cases.
-    routeChange(route);
+    routeChange(app, route);
   });
 
   // Initialize plugins, now that we are ready to go.
-  const pluginManager = AppImpl.instance.plugins;
+  const pluginManager = app.plugins;
   CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
   NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
   const route = Router.parseUrl(window.location.href);

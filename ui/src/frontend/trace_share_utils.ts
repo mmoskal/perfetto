@@ -20,6 +20,7 @@ import {globals} from './globals';
 import {Trace} from '../public/trace';
 import {TraceImpl} from '../core/trace_impl';
 import {CopyableLink} from '../widgets/copyable_link';
+import {AppImpl} from '../core/app_impl';
 
 export function isShareable(trace: Trace) {
   return globals.isInternalUser && trace.traceInfo.downloadable;
@@ -31,7 +32,7 @@ function urlHasPlaceholder(url: string): boolean {
   return url.includes(STATE_HASH_PLACEHOLDER);
 }
 
-export async function shareTrace(trace: TraceImpl) {
+export async function shareTrace(app: AppImpl, trace: TraceImpl) {
   const traceSource = trace.traceInfo.source;
   const traceUrl = (traceSource as TraceUrlSource).url ?? '';
   const hasPlaceholder = urlHasPlaceholder(traceUrl);
@@ -44,8 +45,8 @@ export async function shareTrace(trace: TraceImpl) {
     );
 
     if (result) {
-      const traceUrl = await uploadTraceBlob(trace);
-      const hash = await createPermalink(trace, traceUrl);
+      const traceUrl = await uploadTraceBlob(app, trace);
+      const hash = await createPermalink(app, trace, traceUrl);
       showModal({
         title: 'Permalink',
         content: m(CopyableLink, {
@@ -66,7 +67,7 @@ export async function shareTrace(trace: TraceImpl) {
         );
 
         if (result) {
-          const hash = await createPermalink(trace, undefined);
+          const hash = await createPermalink(app, trace, undefined);
           const urlWithHash = traceUrl.replace(STATE_HASH_PLACEHOLDER, hash);
           showModal({
             title: 'Permalink',

@@ -16,15 +16,14 @@ import {Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {openInOldUIWithSizeCheck} from '../../frontend/legacy_trace_viewer';
 import {Trace} from '../../public/trace';
-import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
 } from '../../frontend/legacy_trace_viewer';
-import {AppImpl} from '../../core/app_impl';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {featureFlags} from '../../core/feature_flags';
+import {AppImpl} from '../../core/app_impl';
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
@@ -112,13 +111,13 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'perfetto.CoreCommands';
-  static onActivate(ctx: App) {
-    if (ctx.sidebar.enabled) {
-      ctx.commands.registerCommand({
+  static onActivate(app: AppImpl) {
+    if (app.sidebar.enabled) {
+      app.commands.registerCommand({
         id: 'perfetto.CoreCommands#ToggleLeftSidebar',
         name: 'Toggle left sidebar',
         callback: () => {
-          ctx.sidebar.toggleVisibility();
+          app.sidebar.toggleVisibility();
         },
         defaultHotkey: '!Mod+B',
       });
@@ -128,11 +127,13 @@ export default class implements PerfettoPlugin {
     input.classList.add('trace_file');
     input.setAttribute('type', 'file');
     input.style.display = 'none';
-    input.addEventListener('change', onInputElementFileSelectionChanged);
+    input.addEventListener('change', (e: Event) =>
+      onInputElementFileSelectionChanged(app, e),
+    );
     document.body.appendChild(input);
 
     const OPEN_TRACE_COMMAND_ID = 'perfetto.CoreCommands#openTrace';
-    ctx.commands.registerCommand({
+    app.commands.registerCommand({
       id: OPEN_TRACE_COMMAND_ID,
       name: 'Open trace file',
       callback: () => {
@@ -141,14 +142,14 @@ export default class implements PerfettoPlugin {
       },
       defaultHotkey: '!Mod+O',
     });
-    ctx.sidebar.addMenuItem({
+    app.sidebar.addMenuItem({
       commandId: OPEN_TRACE_COMMAND_ID,
       section: 'navigation',
       icon: 'folder_open',
     });
 
     const OPEN_LEGACY_COMMAND_ID = 'perfetto.CoreCommands#openTraceInLegacyUi';
-    ctx.commands.registerCommand({
+    app.commands.registerCommand({
       id: OPEN_LEGACY_COMMAND_ID,
       name: 'Open with legacy UI',
       callback: () => {
@@ -157,18 +158,18 @@ export default class implements PerfettoPlugin {
       },
     });
     if (SHOW_OPEN_WITH_LEGACY_UI_BUTTON.get()) {
-      ctx.sidebar.addMenuItem({
+      app.sidebar.addMenuItem({
         commandId: OPEN_LEGACY_COMMAND_ID,
         section: 'navigation',
         icon: 'filter_none',
       });
     }
 
-    ctx.commands.registerCommand({
+    app.commands.registerCommand({
       id: 'perfetto.closeTrace',
       name: 'Close trace',
       callback: () => {
-        ctx.closeCurrentTrace();
+        app.closeCurrentTrace();
       },
     });
   }
@@ -339,7 +340,7 @@ function promptForTimestamp(message: string): time | undefined {
   return undefined;
 }
 
-function onInputElementFileSelectionChanged(e: Event) {
+function onInputElementFileSelectionChanged(app: AppImpl, e: Event) {
   if (!(e.target instanceof HTMLInputElement)) {
     throw new Error('Not an input element');
   }
@@ -349,22 +350,19 @@ function onInputElementFileSelectionChanged(e: Event) {
   e.target.value = '';
 
   if (e.target.dataset['useCatapultLegacyUi'] === '1') {
-    openWithLegacyUi(file);
+    openWithLegacyUi(app, file);
     return;
   }
 
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Open trace from file');
-  AppImpl.instance.openTraceFromFile(file);
+  app.analytics.logEvent('Trace Actions', 'Open trace from file');
+  app.openTraceFromFile(file);
 }
 
-async function openWithLegacyUi(file: File) {
+async function openWithLegacyUi(app: AppImpl, file: File) {
   // Switch back to the old catapult UI.
-  AppImpl.instance.analytics.logEvent(
-    'Trace Actions',
-    'Open trace in Legacy UI',
-  );
+  app.analytics.logEvent('Trace Actions', 'Open trace in Legacy UI');
   if (await isLegacyTrace(file)) {
     return await openFileWithLegacyTraceViewer(file);
   }
-  return await openInOldUIWithSizeCheck(file);
+  return await openInOldUIWithSizeCheck(app, file);
 }

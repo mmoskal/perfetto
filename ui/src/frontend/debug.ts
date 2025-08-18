@@ -29,9 +29,9 @@ declare global {
   }
 }
 
-export function registerDebugGlobals() {
+export function registerDebugGlobals(app: AppImpl) {
   window.m = m;
-  window.app = AppImpl.instance;
+  window.app = app;
   window.globals = globals;
   window.produce = produce;
   window.raf = raf;

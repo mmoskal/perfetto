@@ -24,7 +24,6 @@ import {Button} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Router} from '../../core/router';
-import {AppImpl} from '../../core/app_impl';
 import {Trace} from '../../public/trace';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Icons} from '../../base/semantic_icons';
@@ -131,10 +130,6 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       return 'Query - running';
     }
     const result = resp.error ? 'error' : `${resp.rows.length} rows`;
-    if (AppImpl.instance.testingMode) {
-      // Omit the duration in tests, they cause screenshot diff failures.
-      return `Query result (${result})`;
-    }
     return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 

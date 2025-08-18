@@ -19,7 +19,6 @@ import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
 import {globals} from './globals';
-import {AppImpl} from '../core/app_impl';
 import {Router} from '../core/router';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Intent} from '../widgets/common';
@@ -121,9 +120,9 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   private errorMessage = '';
   private uploader?: GcsUploader;
 
-  constructor() {
+  constructor({attrs}: m.CVnode<ErrorDetails>) {
     this.traceState = 'NOT_AVAILABLE';
-    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    const traceSource = attrs.trace?.traceInfo.source;
     if (traceSource === undefined) return;
     this.traceType = traceSource.type;
     // If the trace is either already uploaded, or comes from a postmessage+url

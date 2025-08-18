@@ -68,6 +68,7 @@ type PermalinkState = z.infer<typeof PERMALINK_SCHEMA>;
  *          trace was already uploaded (i.e. the source type is 'URL').
  */
 export async function uploadTraceBlob(
+  app: AppImpl,
   trace: TraceImpl,
 ): Promise<string | undefined> {
   // Check if we need to upload the trace file, before serializing the app
@@ -93,10 +94,10 @@ export async function uploadTraceBlob(
   if (alreadyUploadedUrl) {
     return alreadyUploadedUrl;
   } else if (dataToUpload !== undefined) {
-    updateStatus(`Uploading ${traceName}`);
+    updateStatus(app, `Uploading ${traceName}`);
     const uploader = new GcsUploader(dataToUpload, {
       mimeType: MIME_BINARY,
-      onProgress: () => reportUpdateProgress(uploader),
+      onProgress: () => reportUpdateProgress(app, uploader),
     });
     await uploader.waitForCompletion();
     return uploader.uploadedUrl;
@@ -116,10 +117,11 @@ export async function uploadTraceBlob(
  * permalink.
  */
 export async function createPermalink(
+  app: AppImpl,
   trace: TraceImpl,
   traceUrl: string | undefined,
 ): Promise<string> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
+  trace.analytics.logEvent('Trace Actions', 'Create permalink');
 
   const permalinkData: PermalinkState = {
     traceUrl,
@@ -127,11 +129,11 @@ export async function createPermalink(
   };
 
   // Serialize the permalink with the app state (or recording state) and upload.
-  updateStatus(`Creating permalink...`);
+  updateStatus(app, `Creating permalink...`);
   const permalinkJson = JsonSerialize(permalinkData);
   const uploader = new GcsUploader(permalinkJson, {
     mimeType: MIME_JSON,
-    onProgress: () => reportUpdateProgress(uploader),
+    onProgress: () => reportUpdateProgress(app, uploader),
   });
   await uploader.waitForCompletion();
 
@@ -145,7 +147,10 @@ export async function createPermalink(
  * expected to be a JSON file that respects the schema defined by
  * PERMALINK_SCHEMA.
  */
-export async function loadPermalink(gcsFileName: string): Promise<void> {
+export async function loadPermalink(
+  app: AppImpl,
+  gcsFileName: string,
+): Promise<void> {
   // Otherwise, this is a request to load the permalink.
   const url = `https://storage.googleapis.com/${BUCKET_NAME}/${gcsFileName}`;
   const response = await fetch(url);
@@ -184,7 +189,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
     }
   }
   if (permalink.traceUrl) {
-    AppImpl.instance.openTraceFromUrl(permalink.traceUrl, serializedAppState);
+    app.openTraceFromUrl(permalink.traceUrl, serializedAppState);
   }
 
   if (error) {
@@ -246,20 +251,20 @@ function tryLoadLegacyPermalink(data: unknown): PermalinkState | undefined {
   } as PermalinkState;
 }
 
-function reportUpdateProgress(uploader: GcsUploader) {
+function reportUpdateProgress(app: AppImpl, uploader: GcsUploader) {
   switch (uploader.state) {
     case 'UPLOADING':
       const statusTxt = `Uploading ${uploader.getEtaString()}`;
-      updateStatus(statusTxt);
+      updateStatus(app, statusTxt);
       break;
     case 'ERROR':
-      updateStatus(`Upload failed ${uploader.error}`);
+      updateStatus(app, `Upload failed ${uploader.error}`);
       break;
     default:
       break;
   } // switch (state)
 }
 
-function updateStatus(msg: string): void {
-  AppImpl.instance.omnibox.showStatusMessage(msg);
+function updateStatus(app: AppImpl, msg: string): void {
+  app.omnibox.showStatusMessage(msg);
 }

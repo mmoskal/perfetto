@@ -21,6 +21,7 @@ import {SettingsManagerImpl} from './settings_manager';
 import {TraceImpl} from './trace_impl';
 import {TraceInfoImpl} from './trace_info_impl';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {ErrorDetails} from '../base/logging';
 
 export interface FakeTraceImplArgs {
   // If true suppresses exceptions when trying to issue a query. This is to
@@ -60,6 +61,9 @@ export function initializeAppImplForTesting(): AppImpl {
         schema: z.enum(['dummy']),
         defaultValue: 'dummy',
       }),
+      maybeShowErrorDialog: (error: ErrorDetails) => {
+        console.error(error);
+      },
     });
   }
   return AppImpl.instance;

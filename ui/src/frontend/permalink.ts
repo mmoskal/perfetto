@@ -63,6 +63,7 @@ type PermalinkState = z.infer<typeof PERMALINK_SCHEMA>;
  * it will be uploaded to GCS, but if it was originally loaded from a URL, we
  * just return that URL.
  *
+ * @param app The application instance.
  * @param trace The trace to upload.
  * @returns The trace URL if the upload was successful, or undefined if the
  *          trace was already uploaded (i.e. the source type is 'URL').
@@ -110,6 +111,7 @@ export async function uploadTraceBlob(
  * Serializes the UI state for a given trace object and uploads it to GCS,
  * with an optional trace URL.
  *
+ * @param app The application instance.
  * @param trace The trace object to serialize and upload.
  * @param traceUrl The URL of the trace file, if available. If undefined, only
  * the app state will be uploaded.
@@ -143,6 +145,8 @@ export async function createPermalink(
 /**
  * Loads a permalink from Google Cloud Storage.
  * This is invoked when passing !#?s=fileName to URL.
+ *
+ * @param app The application instance.
  * @param gcsFileName the file name of the cloud storage object. This is
  * expected to be a JSON file that respects the schema defined by
  * PERMALINK_SCHEMA.

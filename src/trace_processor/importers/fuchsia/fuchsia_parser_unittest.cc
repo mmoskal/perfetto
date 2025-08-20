@@ -108,14 +108,6 @@ class MockProcessTracker : public ProcessTracker {
   explicit MockProcessTracker(TraceProcessorContext* context)
       : ProcessTracker(context) {}
 
-  MOCK_METHOD(UniquePid,
-              SetProcessMetadata,
-              (int64_t pid,
-               std::optional<int64_t> ppid,
-               base::StringView process_name,
-               base::StringView cmdline),
-              (override));
-
   MOCK_METHOD(void,
               UpdateThreadName,
               (UniqueTid utid,
@@ -183,7 +175,6 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker =
         std::make_unique<MetadataTracker>(context_.storage.get());

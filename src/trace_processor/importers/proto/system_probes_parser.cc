@@ -660,8 +660,13 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       }
       joined_cmdline = base::StringView(cmdline_str);
     }
-    UniquePid upid = context_->process_tracker->SetProcessMetadata(
-        pid, ppid, argv0, joined_cmdline);
+
+    UniquePid pupid = context_->process_tracker->GetOrCreateProcess(ppid);
+    UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+
+    upid = context_->process_tracker->UpdateProcessWithParent(upid, pupid);
+
+    context_->process_tracker->SetProcessMetadata(upid, argv0, joined_cmdline);
 
     if (proc.has_uid()) {
       context_->process_tracker->SetProcessUid(
@@ -1072,7 +1077,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     }
 
     if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
-      context_->args_tracker->AddArgsTo(ucpu)
+      ArgsTracker args_tracker(context_);
+      args_tracker.AddArgsTo(ucpu)
           .AddArg(arm_cpu_implementer,
                   Variadic::UnsignedInteger(id->implementer))
           .AddArg(arm_cpu_architecture,

@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <tuple>
 #include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -32,7 +31,6 @@
 
 namespace perfetto::trace_processor {
 
-class ArgsTracker;
 class ArgsTranslationTable;
 class ClockConverter;
 class ClockTracker;
@@ -60,6 +58,7 @@ class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
+struct TrackCompressorGroupIdxState;
 
 using MachineId = tables::MachineTable::Id;
 
@@ -138,6 +137,7 @@ class TraceProcessorContext {
   GlobalPtr<DescriptorPool> descriptor_pool_;
   GlobalPtr<ForkedContextState> forked_context_state;
   GlobalPtr<ClockConverter> clock_converter;
+  GlobalPtr<TrackCompressorGroupIdxState> track_group_idx_state;
 
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of
@@ -192,7 +192,6 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<ProcessTrackTranslationTable>
       process_track_translation_table;
   PerTraceAndMachinePtr<SliceTranslationTable> slice_translation_table;
-  PerTraceAndMachinePtr<ArgsTracker> args_tracker;
   PerTraceAndMachinePtr<TrackTracker> track_tracker;
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;

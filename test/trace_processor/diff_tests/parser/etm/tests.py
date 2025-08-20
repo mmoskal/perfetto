@@ -18,12 +18,12 @@ from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-# TODO(fouly): add ETM to include_index when conditional difftests are added
 class Etm(TestSuite):
 
   def test_sessions(self):
     return DiffTestBlueprint(
         trace=DataPath('simpleperf/cs_etm_u.perf'),
+        module_dependencies=['etm'],
         query='''
           SELECT start_ts, cpu, size
           FROM
@@ -56,6 +56,7 @@ class Etm(TestSuite):
   def test_decode_all(self):
     return DiffTestBlueprint(
         trace=DataPath('simpleperf/cs_etm_u.perf'),
+        module_dependencies=['etm'],
         query='''
           SELECT count(*)
           FROM
@@ -72,8 +73,12 @@ class Etm(TestSuite):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
+        module_dependencies=['etm'],
         query='''
-          SELECT *
+          SELECT
+            chunk_index, element_index, element_type, timestamp, cycle_count,
+            last_seen_timestamp, cumulative_cycles, exception_level,
+            context_id, isa, start_address, end_address, mapping_id
           FROM
             __intrinsic_etm_decode_chunk
           WHERE chunk_id = 0
@@ -84,6 +89,7 @@ class Etm(TestSuite):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
+        module_dependencies=['etm'],
         query='''
           SELECT d.element_index, i.*
           FROM
@@ -98,6 +104,7 @@ class Etm(TestSuite):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
+        module_dependencies=['etm'],
         query='''
           INCLUDE PERFETTO MODULE linux.perf.etm;
           SELECT

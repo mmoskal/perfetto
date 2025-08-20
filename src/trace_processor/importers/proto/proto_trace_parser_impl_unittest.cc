@@ -102,6 +102,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -185,9 +186,13 @@ class MockProcessTracker : public ProcessTracker {
       : ProcessTracker(context) {}
 
   MOCK_METHOD(UniquePid,
+              UpdateProcessWithParent,
+              (UniquePid upid, UniquePid pupid),
+              (override));
+
+  MOCK_METHOD(void,
               SetProcessMetadata,
-              (int64_t pid,
-               std::optional<int64_t> ppid,
+              (UniquePid upid,
                base::StringView process_name,
                base::StringView cmdline),
               (override));
@@ -239,7 +244,6 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.stack_profile_tracker =
         std::make_unique<StackProfileTracker>(&context_);
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
@@ -266,6 +270,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(storage_);
 
     context_.track_compressor.reset(new TrackCompressor(&context_));
+    context_.track_group_idx_state =
+        std::make_unique<TrackCompressorGroupIdxState>();
 
     reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
@@ -759,9 +765,12 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
   process->set_pid(1);
   process->set_ppid(3);
 
-  EXPECT_CALL(*process_,
-              SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
-                                 base::StringView(kProcName1)));
+  EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u))
+      .WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, SetProcessMetadata(4u, base::StringView(kProcName1),
+                                            base::StringView(kProcName1)));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 }
@@ -777,9 +786,12 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   process->set_pid(1);
   process->set_ppid(3);
 
-  EXPECT_CALL(*process_,
-              SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
-                                 base::StringView("proc1 proc2")));
+  EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, UpdateProcessWithParent(4u, 2u))
+      .WillOnce(testing::Return(4u));
+  EXPECT_CALL(*process_, SetProcessMetadata(4u, base::StringView(kProcName1),
+                                            base::StringView("proc1 proc2")));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 }
@@ -1398,7 +1410,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     thread_desc->set_tid(16);
     auto* chrome_thread = track_desc->set_chrome_thread();
     chrome_thread->set_thread_type(
-        protos::pbzero::ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER);
+        protos::chrome_enums::pbzero::THREAD_SAMPLING_PROFILER);
   }
   {
     auto* packet = trace_->add_packet();

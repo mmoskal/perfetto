@@ -1598,7 +1598,8 @@ void FtraceParser::ParseLegacyGenericFtrace(int64_t ts,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, event_id, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   for (auto it = evt.field(); it; ++it) {
     protos::pbzero::GenericFtraceEvent::Field::Decoder fld(*it);
@@ -1649,7 +1650,8 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, descriptor->name, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   // Insert fields into |args|.
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
@@ -1695,7 +1697,8 @@ void FtraceParser::ParseTypedFtraceToRaw(
           ->Insert(
               {timestamp, message_strings.message_name_id, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
     uint32_t field_id = fld.id();
@@ -2480,11 +2483,14 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // If the process is a fork, start a new process.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
-    proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm,
-                                  ThreadNamePriority::kFtrace);
+    auto upid =
+        proc_tracker->StartNewProcess(timestamp, std::nullopt, new_tid,
+                                      new_comm, ThreadNamePriority::kFtrace);
 
     auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
     auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
+
+    proc_tracker->AssociateCreatedProcessToParentThread(upid, source_utid);
 
     ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
         timestamp, new_utid, source_utid);
@@ -2507,8 +2513,9 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
+  auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-      tid, comm, ThreadNamePriority::kFtrace);
+      utid, comm, ThreadNamePriority::kFtrace);
 }
 
 void FtraceParser::ParseBinderTransaction(int64_t timestamp,

@@ -116,6 +116,10 @@ export interface Zone {
   // zone is effectively invisible to interactions.
   readonly keyModifier?: 'shift';
 
+  // Optional: Restrict interactions to a specific mouse button.
+  // If omitted, interactions default to the primary (left) button.
+  readonly mouseButton?: 'left' | 'middle' | 'right';
+
   // Optional: If present, this zone will respond to drag events.
   readonly drag?: DragConfig;
 
@@ -191,8 +195,20 @@ export class ZonedInteractionHandler implements Disposable {
   private onMouseDown(e: MouseEvent) {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
+    // Button mapping for optional zone.mouseButton filter.
+    const buttonMap: Record<'left' | 'middle' | 'right', number> = {
+      left: 0,
+      middle: 1,
+      right: 2,
+    };
+    // Find first zone that both hits and matches the pressed mouse button.
     const zone = this.findZone(
-      (z) => (z.drag || z.onClick) && this.hitTestZone(z, mouse),
+      (z) =>
+        (z.drag || z.onClick) &&
+        this.hitTestZone(z, mouse) &&
+        (z.mouseButton !== undefined
+          ? buttonMap[z.mouseButton] === e.button
+          : e.button === 0),
     );
     if (zone) {
       this.currentGesture = {
@@ -280,6 +296,12 @@ export class ZonedInteractionHandler implements Disposable {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
     const zone = this.findZone((z) => z.onWheel && this.hitTestZone(z, mouse));
+    if (zone) {
+      // Prevent the page from scrolling when the wheel is used over
+      // interactive timeline areas (zoom/pan), while still allowing
+      // native scrolling elsewhere (e.g., track list).
+      e.preventDefault();
+    }
     zone?.onWheel?.({
       position: mouse,
       deltaX: e.deltaX,
@@ -309,6 +331,8 @@ export class ZonedInteractionHandler implements Disposable {
   }
 
   private handleClick(element: HTMLElement, e: MouseEvent) {
+    // Only treat primary button as a click for zone handlers by default.
+    if (e.button !== 0) return;
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(element.getBoundingClientRect());
     const zone = this.findZone((z) => z.onClick && this.hitTestZone(z, mouse));

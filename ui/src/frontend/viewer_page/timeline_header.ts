@@ -32,6 +32,7 @@ import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {
   shiftDragPanInteraction,
+  middleDragPanInteraction,
   wheelNavigationInteraction,
 } from './timeline_interactions';
 
@@ -143,6 +144,7 @@ export class TimelineHeader implements m.ClassComponent<TimelineHeaderAttrs> {
 
     assertExists(this.interactions).update([
       shiftDragPanInteraction(this.trace, timelineRect, timescale),
+      middleDragPanInteraction(this.trace, timelineRect, timescale),
       wheelNavigationInteraction(this.trace, timelineRect, timescale),
       {
         // Allow making area selections (no tracks) by dragging on the header

@@ -44,6 +44,28 @@ export function shiftDragPanInteraction(
   };
 }
 
+/**
+ * Adds mouse-centric timeline panning via middle-button drag, while leaving
+ * left-button drag available for selection/editing zones.
+ */
+export function middleDragPanInteraction(
+  trace: TraceImpl,
+  rect: Rect2D,
+  timescale: TimeScale,
+): Zone {
+  return {
+    id: 'drag-pan-middle',
+    area: rect,
+    mouseButton: 'middle',
+    drag: {
+      cursorWhileDragging: 'grabbing',
+      onDrag: (e) => {
+        trace.timeline.pan(timescale.pxToDuration(-e.deltaSinceLastEvent.x));
+      },
+    },
+  };
+}
+
 export function wheelNavigationInteraction(
   trace: TraceImpl,
   rect: Rect2D,
@@ -53,11 +75,13 @@ export function wheelNavigationInteraction(
     id: 'mouse-wheel-navigation',
     area: rect,
     onWheel: (e) => {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        const tDelta = timescale.pxToDuration(e.deltaX);
-        trace.timeline.pan(tDelta);
+      if (e.ctrlKey) {
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+          const tDelta = timescale.pxToDuration(e.deltaX);
+          trace.timeline.pan(tDelta);
+        }
       } else {
-        if (e.ctrlKey) {
+        if (Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
           const sign = e.deltaY < 0 ? -1 : 1;
           const deltaY = sign * Math.log2(1 + Math.abs(e.deltaY));
           const zoomPx = e.position.x - rect.left;

@@ -1101,18 +1101,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     slices: readonly SliceOrInstant<T>[],
   ): readonly ColorVariant[] {
     const hoveredSlice = this.hoveredSlice;
-    const highlightedSliceName = this.attrs.trace.timeline.highlightedSliceName;
     const variants = new Array<ColorVariant>(slices.length);
-    if (hoveredSlice || highlightedSliceName !== undefined) {
-      const hoveredSliceId = hoveredSlice?.id;
-      const hoveredTitle = highlightedSliceName;
+    if (hoveredSlice) {
       // Index based iteration is more efficient than .map
       for (let i = 0; i < slices.length; i++) {
-        const {id, title} = slices[i];
         variants[i] =
-          id === hoveredSliceId || title === hoveredTitle
-            ? ColorVariant.VARIANT
-            : ColorVariant.BASE;
+          slices[i] === hoveredSlice ? ColorVariant.VARIANT : ColorVariant.BASE;
       }
       return variants;
     } else {
